@@ -9,5 +9,7 @@ os.environ["PATH"] += os.pathsep + os.path.abspath("ffmpeg/bin")
 asr_pipeline = pipeline("automatic-speech-recognition", model="openai/whisper-small", device=0 if torch.cuda.is_available() else -1)
 
 def transcribe_audio(file_path: str) -> str:
-    result = asr_pipeline(file_path)
+    result = asr_pipeline(file_path, generate_kwargs={"language": "en", "task": "transcribe"})
     return result["text"]
+
+

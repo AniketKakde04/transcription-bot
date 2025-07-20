@@ -1,0 +1,5 @@
+[
+  {"text": "My pin number is 1234", "label": "PIN"},
+  {"text": "My Aadhaar is 1234 5678 9012", "label": "AADHAAR"},
+  {"text": "My PAN is ABCDE1234F", "label": "PAN"}
+]

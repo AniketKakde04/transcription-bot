@@ -4,3 +4,7 @@ torch
 transformers
 twilio
 requests
+nltk 
+cryptography 
+sentence-transformers 
+faiss-cpu

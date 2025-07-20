@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.log
+
+# Virtual environments
+.venv/
+env/
+venv/
+
+# Env & secrets
+.env
+
+# Streamlit cache
+.streamlit/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+.DS_Store
+*.sqlite3
+
+# Audio files
+*.wav
+*.mp3
+
+# FFmpeg binaries
+ffmpeg/
+
+# VSCode
+.vscode/
