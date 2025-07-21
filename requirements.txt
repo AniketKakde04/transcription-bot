@@ -8,3 +8,4 @@ nltk
 cryptography 
 sentence-transformers 
 faiss-cpu
+googletrans==4.0.0-rc1

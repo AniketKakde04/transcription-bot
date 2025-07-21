@@ -34,3 +34,20 @@ ffmpeg/
 
 # VSCode
 .vscode/
+
+#databse files
+*.db
+*.sqlite3
+
+#temporary files
+*.tmp
+*.log
+*.temp
+*.bak
+*.swp
+.DS_Store
+
+#NGROK
+project
+ngrok
+ngrok.exe
