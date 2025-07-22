@@ -9,7 +9,7 @@ from googletrans import Translator
 from twilio_utils import download_audio_file
 from transcription_utils import transcribe_audio
 from sensitive_utils.detector import detect_and_encrypt_sensitive
-from db_utils import get_agent_and_customers # <-- Use the new function
+from db_utils import get_agent_and_customers, get_customer_history
 
 load_dotenv()
 app = Flask(__name__)
@@ -19,9 +19,9 @@ translator = Translator()
 def whatsapp_webhook():
     resp = MessagingResponse()
     from_number = request.form.get("From")
-    
+
     if int(request.form.get("NumMedia", 0)) > 0:
-        # (No changes needed in the voice note section)
+        # --- Handle voice note ---
         media_url = request.form.get("MediaUrl0")
         try:
             audio_data = download_audio_file(media_url)
@@ -35,30 +35,45 @@ def whatsapp_webhook():
         except Exception as e:
             print("Error processing voice note:", e)
             resp.message("Sorry, I could not process your voice note.")
-            
     else:
-        # --- This is the TEXT MESSAGE logic ---
-        incoming_msg = request.form.get("Body", "").lower()
-        translated_msg = translator.translate(incoming_msg, dest='en').text.lower()
-        
-        if 'customer' in translated_msg or 'list' in translated_msg:
-            # Fetch both agent and customers
+        # --- Handle text message ---
+        incoming_msg = request.form.get("Body", "").strip()
+        command_parts = incoming_msg.split()
+        command = command_parts[0].lower() if command_parts else ""
+
+        # --- List customers ---
+        if command == "list" or command == "customer":
             agent, customers = get_agent_and_customers(from_number)
-            
-            # Check if both the agent and their customers were found
             if agent and customers:
-                # Create the new, personalized reply message
                 reply_msg = f"Hi {agent['agent_name']}. This is your customer list:\n\n"
                 for customer in customers:
-                    reply_msg += f"👤 Name: {customer['customer_name']}\n"
-                    reply_msg += f"   💰 Due: {customer['due_amount']}\n"
-                    reply_msg += f"   #️⃣ Acc: {customer['account_number']}\n"
-                    reply_msg += f"   📍 Loc: {customer['location']}\n\n"
+                    reply_msg += f"👤 {customer['customer_name']} (#{customer['account_number']})\n"
                 resp.message(reply_msg)
             else:
                 resp.message("You have no customers assigned, or your number is not registered as an agent.")
+
+        # --- Customer history ---
+        elif command == "history":
+            if len(command_parts) > 1:
+                account_number = command_parts[1].upper()
+                details = get_customer_history(account_number)
+                if details:
+                    reply_msg = f"📜 Account History for {details['customer_name']} ({account_number}):\n\n"
+                    reply_msg += f"💰 Total Loan: {details['total_loan']}\n"
+                    reply_msg += f"💵 Due Amount: {details['due_amount']}\n"
+                    reply_msg += f"🗓 EMIs Paid: {details['emis_paid']}\n"
+                    reply_msg += f"📅 Last Payment: {details['last_payment_date']}\n"
+                    reply_msg += f"📍 Location: {details['location']}\n"
+                    reply_msg += f"📈 Record: {details['payment_record']}"
+                    resp.message(reply_msg)
+                else:
+                    resp.message(f"Sorry, no history found for account number: {account_number}")
+            else:
+                resp.message("Please provide an account number. Usage: history <account_number>")
+
+        # --- Unknown command ---
         else:
-            resp.message("Sorry, I don't understand that command. Please send a voice note for transcription or ask for your 'customer list'.")
+            resp.message("Sorry, I don't understand. Send 'list' for customers or 'history <account_number>' for details.")
 
     return str(resp)
 
