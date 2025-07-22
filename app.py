@@ -3,17 +3,16 @@ import sqlite3
 from flask import Flask, request
 from dotenv import load_dotenv
 from twilio.twiml.messaging_response import MessagingResponse
-from googletrans import Translator
 
 # Import your existing and new utils
 from twilio_utils import download_audio_file
 from transcription_utils import transcribe_audio
 from sensitive_utils.detector import detect_and_encrypt_sensitive
 from db_utils import get_agent_and_customers, get_customer_history
+from nlu_utils import get_intent_and_entities
 
 load_dotenv()
 app = Flask(__name__)
-translator = Translator()
 
 @app.route("/webhook", methods=["POST"])
 def whatsapp_webhook():
@@ -21,7 +20,7 @@ def whatsapp_webhook():
     from_number = request.form.get("From")
 
     if int(request.form.get("NumMedia", 0)) > 0:
-        # --- Handle voice note ---
+        # --- Voice Note Logic (No changes needed) ---
         media_url = request.form.get("MediaUrl0")
         try:
             audio_data = download_audio_file(media_url)
@@ -35,27 +34,27 @@ def whatsapp_webhook():
         except Exception as e:
             print("Error processing voice note:", e)
             resp.message("Sorry, I could not process your voice note.")
+            
     else:
-        # --- Handle text message ---
+        # --- Text Message Logic (Now much cleaner) ---
         incoming_msg = request.form.get("Body", "").strip()
-        command_parts = incoming_msg.split()
-        command = command_parts[0].lower() if command_parts else ""
+        
+        # 1. Get intent and entities from our NLU utility
+        intent, account_number = get_intent_and_entities(incoming_msg)
 
-        # --- List customers ---
-        if command == "list" or command == "customer":
+        # 2. Route to the correct action based on the identified intent
+        if intent == 'get_customer_list':
             agent, customers = get_agent_and_customers(from_number)
             if agent and customers:
-                reply_msg = f"Hi {agent['agent_name']}. This is your customer list:\n\n"
+                reply_msg = f"Hi {agent['agent_name']}. Here is your customer list:\n\n"
                 for customer in customers:
                     reply_msg += f"👤 {customer['customer_name']} (#{customer['account_number']})\n"
                 resp.message(reply_msg)
             else:
                 resp.message("You have no customers assigned, or your number is not registered as an agent.")
 
-        # --- Customer history ---
-        elif command == "history":
-            if len(command_parts) > 1:
-                account_number = command_parts[1].upper()
+        elif intent == 'get_customer_history':
+            if account_number:
                 details = get_customer_history(account_number)
                 if details:
                     reply_msg = f"📜 Account History for {details['customer_name']} ({account_number}):\n\n"
@@ -69,11 +68,17 @@ def whatsapp_webhook():
                 else:
                     resp.message(f"Sorry, no history found for account number: {account_number}")
             else:
-                resp.message("Please provide an account number. Usage: history <account_number>")
+                resp.message("Of course. Please tell me which account number you'd like to see the history for.")
+        
+        elif intent == 'greet':
+            resp.message("Hello! How can I help you today? You can ask for your 'customer list' or for the 'history of an account'.")
 
-        # --- Unknown command ---
+        elif intent == 'goodbye':
+            resp.message("You're welcome! Have a great day.")
+
         else:
-            resp.message("Sorry, I don't understand. Send 'list' for customers or 'history <account_number>' for details.")
+            # This is the fallback if no intent is understood
+            resp.message("Sorry, I'm not sure how to help with that. You can ask for your 'customer list' or for 'history of ACC...'.")
 
     return str(resp)
 
