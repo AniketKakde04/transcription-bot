@@ -9,3 +9,4 @@ cryptography
 sentence-transformers 
 faiss-cpu
 deep-translator
+google-generativeai

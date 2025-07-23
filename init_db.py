@@ -38,12 +38,12 @@ print("Tables checked/created successfully.")
 try:
     # Define agent numbers as variables for clarity and accuracy
     agent1_number = 'whatsapp:+918766806290'
-    agent2_number = 'whatsapp:+918149394348' # Using a placeholder for the second agent
+    agent2_number = 'whatsapp:+917410736635' # Using a placeholder for the second agent
 
     # 1. Add all agents to the 'agents' table
     agents_to_add = [
         (agent1_number, 'Aniket Kakde'),
-        (agent2_number, 'Hrishikesh Kakde')
+        (agent2_number, 'Hrutanshu Kuarkar')
     ]
     cursor.executemany("INSERT INTO agents (whatsapp_number, agent_name) VALUES (?, ?)", agents_to_add)
 

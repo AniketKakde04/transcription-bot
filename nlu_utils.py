@@ -1,40 +1,61 @@
-import re
-from deep_translator import GoogleTranslator
+import os
+import json
+import google.generativeai as genai
 
-# --- NEW: Add keywords for specific follow-up questions ---
-INTENT_KEYWORDS = {
-    'get_customer_list': ['list', 'customers', 'customer', 'accounts', 'users'],
-    'get_customer_history': ['history', 'details', 'info', 'information', 'about'],
-    'get_due_amount': ['due', 'outstanding', 'balance', 'owe'],
-    'get_payment_record': ['record', 'payment history', 'payments'],
-    'greet': ['hi', 'hello', 'hey'],
-    'goodbye': ['bye', 'thanks', 'thank you', 'done']
-}
+# Configure the generative AI model with your API key from the .env file
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+model = genai.GenerativeModel('gemini-2.0-flash')
+
+# This is the "brain" of our NLU. It's a detailed instruction for the LLM.
+SYSTEM_PROMPT = """
+You are an expert NLU (Natural Language Understanding) system for a loan recovery chatbot.
+Your task is to analyze the user's message and determine their intent and any entities.
+
+The possible intents are:
+- get_customer_list
+- get_customer_history
+- get_due_amount
+- get_payment_record
+- greet
+- goodbye
+- unknown
+
+The only entity to extract is 'account_number'.
+
+Analyze the user's message and respond ONLY with a JSON object in the following format:
+{"intent": "intent_name", "account_number": "extracted_account_number_or_null"}
+
+Example user messages and their expected JSON output:
+- "Show me my customers" -> {"intent": "get_customer_list", "account_number": null}
+- "tell me about acc001" -> {"intent": "get_customer_history", "account_number": "ACC001"}
+- "what is the due amount?" -> {"intent": "get_due_amount", "account_number": null}
+- "thanks bye" -> {"intent": "goodbye", "account_number": null}
+- "what is the weather" -> {"intent": "unknown", "account_number": null}
+"""
 
 def get_intent_and_entities(message):
     """
-    Translates a message, then determines the user's intent and extracts entities.
+    Uses the Gemini LLM to determine the user's intent and extract entities.
     """
     try:
-        translated_message = GoogleTranslator(source='auto', target='en').translate(message)
-        message_to_process = translated_message.lower()
-    except Exception as e:
-        print(f"Translation error: {e}")
-        message_to_process = message.lower()
-
-    # --- Intent Recognition ---
-    matched_intent = None
-    for intent, keywords in INTENT_KEYWORDS.items():
-        if any(keyword in message_to_process for keyword in keywords):
-            matched_intent = intent
-            break
-            
-    # --- Entity Extraction (for account number) ---
-    account_number = None
-    match = re.search(r'acc\d+', message.lower())
-    if match:
-        account_number = match.group(0).upper()
-        # If we find an account number, the intent is likely to get history
-        matched_intent = 'get_customer_history'
+        # Combine the system prompt with the user's actual message
+        full_prompt = f"{SYSTEM_PROMPT}\nUser message: \"{message}\""
         
-    return matched_intent, account_number
+        # Send the prompt to the model
+        response = model.generate_content(full_prompt)
+        
+        # Clean up the response to get a valid JSON string
+        json_response_str = response.text.strip().replace('```json', '').replace('```', '')
+        
+        # Parse the JSON string into a Python dictionary
+        result = json.loads(json_response_str)
+        
+        intent = result.get("intent", "unknown")
+        account_number = result.get("account_number")
+        
+        return intent, account_number
+
+    except Exception as e:
+        print(f"LLM NLU Error: {e}")
+        # Fallback in case of an error, for example, if the API key is invalid
+        return "unknown", None
