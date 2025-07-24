@@ -28,7 +28,7 @@ def whatsapp_webhook():
 
     if int(request.form.get("NumMedia", 0)) > 0:
         # --- Voice Note Logic ---
-        media_url = request.form.get("MediaUrl0")
+        media_url = request.form.get("MediaUrl  0")
         try:
             audio_data = download_audio_file(media_url)
             temp_audio_path = "temp_voice_note.ogg"
