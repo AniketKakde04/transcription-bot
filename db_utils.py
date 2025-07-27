@@ -85,3 +85,86 @@ def get_full_case_details(account_number, supervisor_number):
     details = cursor.fetchone()
     connection.close()
     return details
+
+# In db_utils.py
+
+def create_communication_record(account_number, agent_number, supervisor_number, summary_report):
+    """
+    Creates a new record in the communications table for a supervisor to review.
+    """
+    connection = sqlite3.connect('loan_recovery.db')
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute('''
+            INSERT INTO communications (account_number, agent_number, supervisor_number, summary_report)
+            VALUES (?, ?, ?, ?)
+        ''', (account_number, agent_number, supervisor_number, summary_report))
+        connection.commit()
+        success = True
+    except Exception as e:
+        print(f"Database Error creating communication record: {e}")
+        success = False
+    finally:
+        connection.close()
+    
+    return success
+
+# In db_utils.py
+
+def get_pending_reports_for_supervisor(supervisor_number):
+    """
+    Fetches all communication records with a 'Pending' status for a specific supervisor.
+    """
+    connection = sqlite3.connect('loan_recovery.db')
+    connection.row_factory = sqlite3.Row
+    cursor = connection.cursor()
+    
+    cursor.execute('''
+        SELECT comm_id, account_number, agent_number, summary_report 
+        FROM communications 
+        WHERE supervisor_number = ? AND status = 'Pending'
+    ''', (supervisor_number,))
+    
+    reports = cursor.fetchall()
+    connection.close()
+    return reports
+
+# In db_utils.py
+
+def submit_supervisor_decision(comm_id, decision):
+    """
+    Updates a communication record with the supervisor's decision, sets the 
+    status to 'Resolved', and returns the details needed for notification.
+    """
+    connection = sqlite3.connect('loan_recovery.db')
+    connection.row_factory = sqlite3.Row
+    cursor = connection.cursor()
+
+    # Get the original agent's number and account number before updating
+    cursor.execute("SELECT agent_number, account_number FROM communications WHERE comm_id = ?", (comm_id,))
+    comm_details = cursor.fetchone()
+
+    if not comm_details:
+        connection.close()
+        return None, None # Return nothing if the report ID is invalid
+
+    try:
+        # Update the communications table
+        cursor.execute("UPDATE communications SET supervisor_decision = ?, status = 'Resolved' WHERE comm_id = ?", (decision, comm_id))
+        
+        # Also, update the main account_history table
+        cursor.execute("UPDATE account_history SET supervisor_decision = ?, status = 'Resolved' WHERE account_number = ?", (decision, comm_details['account_number']))
+
+        connection.commit()
+        success = True
+    except Exception as e:
+        print(f"Database Error submitting decision: {e}")
+        success = False
+    finally:
+        connection.close()
+    
+    if success:
+        return comm_details['agent_number'], comm_details['account_number']
+    else:
+        return None, None

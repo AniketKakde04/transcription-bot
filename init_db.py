@@ -3,7 +3,8 @@ import sqlite3
 connection = sqlite3.connect('loan_recovery.db')
 cursor = connection.cursor()
 
-# --- Reverted, simpler table structures ---
+# --- Create tables ---
+# (agents, customers, and account_history tables remain the same)
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS agents (
     whatsapp_number TEXT PRIMARY KEY,
@@ -22,7 +23,6 @@ CREATE TABLE IF NOT EXISTS customers (
     FOREIGN KEY (assigned_agent_number) REFERENCES agents(whatsapp_number)
 )
 ''')
-# This version HAS the old 'payment_record' column
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS account_history (
     history_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,10 +38,29 @@ CREATE TABLE IF NOT EXISTS account_history (
 )
 ''')
 
+# --- NEW: Create a 'communications' table to track escalations ---
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS communications (
+    comm_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_number TEXT NOT NULL,
+    agent_number TEXT NOT NULL,
+    supervisor_number TEXT NOT NULL,
+    summary_report TEXT NOT NULL,
+    supervisor_decision TEXT,
+    status TEXT DEFAULT 'Pending', -- Can be 'Pending' or 'Resolved'
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (account_number) REFERENCES customers(account_number),
+    FOREIGN KEY (agent_number) REFERENCES agents(whatsapp_number),
+    FOREIGN KEY (supervisor_number) REFERENCES agents(whatsapp_number)
+)
+''')
+
+
 print("Tables checked/created successfully.")
 
 # --- Add sample data ---
 try:
+    # (The rest of the data insertion remains the same)
     agent1_number = 'whatsapp:+918766806290'
     agent2_number = 'whatsapp:+918149394348'
     supervisor_number = 'whatsapp:+918793217557'

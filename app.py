@@ -4,12 +4,13 @@ from flask import Flask, request
 from dotenv import load_dotenv
 from twilio.twiml.messaging_response import MessagingResponse
 
-from twilio_utils import download_audio_file
+from twilio_utils import download_audio_file,send_whatsapp_message
 from transcription_utils import transcribe_audio
 from sensitive_utils.detector import detect_and_encrypt_sensitive
-from db_utils import get_agent_and_customers, get_customer_history, log_agent_notes, get_all_data_for_agent, get_full_case_details
+from db_utils import get_agent_and_customers, get_customer_history, log_agent_notes, get_all_data_for_agent, get_full_case_details, create_communication_record, get_pending_reports_for_supervisor, submit_supervisor_decision
 from nlu_utils import get_intent_and_entities
 from llm_utils import generate_priority_plan, generate_summary_for_supervisor
+
 
 load_dotenv()
 app = Flask(__name__)
@@ -98,6 +99,81 @@ def whatsapp_webhook():
                     resp.message(f"Could not generate summary. You may not have permission to view {account_number}.")
              else:
                 resp.message("Please specify an account number to summarize. Usage: summary <account_number>")
+        
+
+        elif intent == 'send_report':
+            last_account = user_context.get('last_account_viewed')
+            if last_account:
+                # First, get the agent's own details to find their supervisor
+                agent_details_cursor = sqlite3.connect('loan_recovery.db').cursor()
+                agent_details_cursor.execute("SELECT supervisor_number FROM agents WHERE whatsapp_number = ?", (from_number,))
+                agent_info = agent_details_cursor.fetchone()
+                
+                if agent_info and agent_info[0]:
+                    supervisor_number = agent_info[0]
+                    
+                    # Fetch the customer details to generate the summary
+                    details = get_customer_history(last_account, from_number)
+                    if details:
+                        summary = generate_summary_for_supervisor(details)
+                        
+                        # Save the report to the communications table
+                        success = create_communication_record(last_account, from_number, supervisor_number, summary)
+                        
+                        if success:
+                            resp.message(f"Your report for {last_account} has been sent to your supervisor for review.")
+                        else:
+                            resp.message("Sorry, there was an error sending your report. Please try again.")
+                    else:
+                        resp.message(f"Could not find details for {last_account} to generate a report.")
+                else:
+                    resp.message("Could not find a supervisor assigned to you in the system.")
+            else:
+                resp.message("Sorry, I'm not sure which account you want to send a report for. Please view an account's history first.")
+
+        # In the `else` block for text messages, after the `send_report` block
+
+        elif intent == 'get_pending_reports':
+            # This is a supervisor-only command
+            reports = get_pending_reports_for_supervisor(from_number)
+            if reports:
+                reply_msg = "Here are your pending reports:\n"
+                for report in reports:
+                    reply_msg += f"\n--------------------\n"
+                    reply_msg += f"*Report ID:* {report['comm_id']}\n"
+                    reply_msg += f"*Account:* {report['account_number']}\n"
+                    reply_msg += f"*Summary:* {report['summary_report']}\n"
+                resp.message(reply_msg)
+            else:
+                resp.message("You have no pending reports to review.")
+        
+        # In the `else` block for text messages in app.py
+
+        elif intent == 'submit_decision':
+            # This is a supervisor-only command
+            try:
+                parts = incoming_msg.split(':', 1)
+                decision = parts[1].strip()
+                comm_id_str = parts[0].split()[-1]
+                comm_id = int(comm_id_str)
+                
+                # The function now returns the agent's number and account number
+                agent_to_notify, account_number = submit_supervisor_decision(comm_id, decision)
+                
+                if agent_to_notify:
+                    # If the decision was saved, send the notification
+                    notification_body = f"Your supervisor has reviewed the case for *{account_number}*.\n\n*Decision:* {decision}"
+                    send_whatsapp_message(agent_to_notify, notification_body)
+                    
+                    resp.message(f"Your decision for report ID {comm_id} has been recorded and the agent has been notified.")
+                else:
+                    resp.message("Sorry, there was an error recording your decision. Please check the report ID.")
+            except (IndexError, ValueError):
+                resp.message("To submit a decision, please use the format: decision for <report_id>: <your_decision>")
+
+# ... (rest of your app.py file)
+
+
                 
         elif intent in ['get_due_amount', 'get_payment_record']:
             last_account = user_context.get('last_account_viewed')
