@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Supervisor Login</title>
+    <style>
+        body { font-family: sans-serif; background: #f4f4f4; }
+        .container { width: 300px; margin: 100px auto; padding: 20px; background: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        input { width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Supervisor Login</h2>
+        <form method="POST">
+            {{ form.hidden_tag() }}
+            <div>
+                <label>WhatsApp Number</label>
+                {{ form.whatsapp_number(placeholder="whatsapp:+91...") }}
+            </div>
+            <div>
+                <label>Password (can be anything for now)</label>
+                {{ form.password }}
+            </div>
+            <button type="submit">Login</button>
+        </form>
+    </div>
+</body>
+</html>

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Supervisor Dashboard</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        h1, h2 { color: #333; }
+        .case { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 5px; }
+        .case h3 { margin-top: 0; }
+        .case pre { background: #f9f9f9; padding: 10px; border-radius: 3px; white-space: pre-wrap; }
+        form { margin-top: 10px; }
+        textarea { width: 100%; height: 60px; }
+        button { background: #28a745; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Supervisor Dashboard</h1>
+    <h2>Welcome, {{ supervisor_name }}</h2>
+    <hr>
+    <h2>Pending Cases for Your Team</h2>
+    {% if reports %}
+        {% for report in reports %}
+            <div class="case">
+                <h3>Report ID: {{ report.comm_id }} (for Account: {{ report.account_number }})</h3>
+                <p><strong>Submitted by Agent:</strong> {{ report.agent_number }}</p>
+                <p><strong>AI Summary:</strong></p>
+                <pre>{{ report.summary_report }}</pre>
+                <form method="POST">
+                    <input type="hidden" name="comm_id" value="{{ report.comm_id }}">
+                    <textarea name="decision" placeholder="Enter your decision here..."></textarea>
+                    <button type="submit">Submit Decision</button>
+                </form>
+            </div>
+        {% endfor %}
+    {% else %}
+        <p>You have no pending cases to review.</p>
+    {% endif %}
+</body>
+</html>

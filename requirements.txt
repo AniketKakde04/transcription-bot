@@ -10,3 +10,5 @@ sentence-transformers
 faiss-cpu
 deep-translator
 google-generativeai
+Flask-WTF
+email-validator
