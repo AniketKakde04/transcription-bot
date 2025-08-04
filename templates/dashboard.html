@@ -215,70 +215,26 @@
     </style>
 </head>
 <body>
-    <header>
-        <h1>📋 Supervisor Dashboard</h1>
-        <div style="display: flex; gap: 10px; align-items: center;">
-            <div class="supervisor-name">Welcome, {{ supervisor_name }}</div>
-            <button class="dark-toggle" onclick="toggleDarkMode()">🌙 Dark Mode</button>
-        </div>
-    </header>
-
-    <div class="dashboard">
-        <div class="breadcrumbs">
-            Home / <span>Pending Cases</span>
-        </div>
-
-        <h2>📂 Pending Cases for Your Team</h2>
-
-        {% if reports %}
-            {% for report in reports %}
-                <div class="case">
-                    <h3>📝 Report ID: {{ report.comm_id }} (Account: {{ report.account_number }})</h3>
-                    <p><strong>👤 Submitted by Agent:</strong> {{ report.agent_number }}</p>
-                    <p><strong>🧠 AI Summary:</strong></p>
-                    <pre>{{ report.summary_report }}</pre>
-                    <form method="POST">
-                        <input type="hidden" name="comm_id" value="{{ report.comm_id }}">
-                        <textarea name="decision" placeholder="✏️ Enter your decision here..." required></textarea>
-                        <button type="submit">✅ Submit Decision</button>
-                    </form>
-                </div>
-            {% endfor %}
-        {% else %}
-            <p>📭 You have no pending cases to review.</p>
-        {% endif %}
-    </div>
-
-    <button onclick="scrollToTop()" class="scroll-to-top" id="scrollBtn">⬆️</button>
-
-    <script>
-        // Dark mode persistence
-        function toggleDarkMode() {
-            document.body.classList.toggle('dark');
-            localStorage.setItem('darkMode', document.body.classList.contains('dark'));
-        }
-
-        // Load preference
-        window.onload = () => {
-            if (localStorage.getItem('darkMode') === 'true') {
-                document.body.classList.add('dark');
-            }
-        };
-
-        // Scroll to top
-        function scrollToTop() {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-
-        // Show/hide scroll button
-        window.onscroll = function () {
-            const btn = document.getElementById("scrollBtn");
-            if (document.body.scrollTop > 300 || document.documentElement.scrollTop > 300) {
-                btn.style.display = "block";
-            } else {
-                btn.style.display = "none";
-            }
-        };
-    </script>
+    <h1>Supervisor Dashboard</h1>
+    <h2>Welcome, {{ supervisor_name }}</h2>
+    <hr>
+    <h2>Pending Cases for Your Team</h2>
+    {% if reports %}
+        {% for report in reports %}
+            <div class="case">
+                <h3>Report ID: {{ report.comm_id }} (for Account: {{ report.account_number }})</h3>
+                <p><strong>Submitted by Agent:</strong> {{ report.agent_number }}</p>
+                <p><strong>AI Summary:</strong></p>
+                <pre>{{ report.summary_report }}</pre>
+                <form method="POST">
+                    <input type="hidden" name="comm_id" value="{{ report.comm_id }}">
+                    <textarea name="decision" placeholder="Enter your decision here..."></textarea>
+                    <button type="submit">Submit Decision</button>
+                </form>
+            </div>
+        {% endfor %}
+    {% else %}
+        <p>You have no pending cases to review.</p>
+    {% endif %}
 </body>
 </html>

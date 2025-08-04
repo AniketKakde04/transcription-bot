@@ -1,4 +1,6 @@
 import sqlite3
+import bcrypt
+
 
 connection = sqlite3.connect('loan_recovery.db')
 cursor = connection.cursor()
@@ -12,6 +14,14 @@ CREATE TABLE IF NOT EXISTS agents (
     supervisor_number TEXT
 )
 ''')
+
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS supervisors (
+    whatsapp_number TEXT PRIMARY KEY,
+    password_hash TEXT NOT NULL
+)
+''')
+
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS customers (
     customer_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,7 +73,21 @@ try:
     # (The rest of the data insertion remains the same)
     agent1_number = 'whatsapp:+918766806290'
     agent2_number = 'whatsapp:+918149394348'
-    supervisor_number = 'whatsapp:+918793217557'
+    supervisor_number = '+918793217557'
+    supervisor_password = 'root@123'  # Change as needed
+
+    password_bytes = supervisor_password.encode('utf-8')
+    hashed = bcrypt.hashpw(password_bytes, bcrypt.gensalt())
+
+    try:
+        cursor.execute(
+        "INSERT INTO supervisors (whatsapp_number, password_hash) VALUES (?, ?)",
+        (supervisor_number, hashed.decode('utf-8'))
+     )
+        print("Supervisor added securely.")
+    except sqlite3.IntegrityError:
+        print("Supervisor already exists, skipping insertion.")
+
 
     agents_to_add = [
         (agent1_number, 'Aniket Kakde', supervisor_number),
