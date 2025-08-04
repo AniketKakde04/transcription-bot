@@ -11,8 +11,12 @@
     </style>
 </head>
 <body>
+<!-- ...existing code... -->
     <div class="container">
         <h2>Supervisor Login</h2>
+        {% if error %}
+            <div style="color: red; margin-bottom: 10px;">{{ error }}</div>
+        {% endif %}
         <form method="POST">
             {{ form.hidden_tag() }}
             <div>
@@ -26,5 +30,6 @@
             <button type="submit">Login</button>
         </form>
     </div>
+<!-- ...existing code... -->
 </body>
 </html>

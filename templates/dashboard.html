@@ -17,6 +17,7 @@
 <body>
     <h1>Supervisor Dashboard</h1>
     <h2>Welcome, {{ supervisor_name }}</h2>
+    <a href="{{ url_for('logout') }}" style="float: right; color: #fff; background: #dc3545; padding: 8px 12px; border-radius: 5px; text-decoration: none; margin-top: -40px;">Logout</a>
     <hr>
     <h2>Pending Cases for Your Team</h2>
     {% if reports %}
