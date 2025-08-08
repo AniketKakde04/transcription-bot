@@ -57,3 +57,44 @@ def generate_summary_for_supervisor(customer_details):
     except Exception as e:
         print(f"LLM Summarizer Error: {e}")
         return "Sorry, I was unable to generate a summary for this case."
+
+
+
+AI_DECISION_PROMPT = """
+You are a junior loan recovery officer. Your task is to analyze a customer's case and recommend a standard, pre-approved action.
+The case data includes the customer's profile, their payment history, and the recovery agent's recent notes.
+
+Analyze the data and choose ONE of the following standard actions:
+1.  "Offer a 7-day payment extension."
+2.  "Schedule a follow-up call in 3 days."
+3.  "Verify customer contact details."
+
+Provide only the chosen action as your response, with no additional explanation.
+---
+{case_data}
+---
+Recommend the standard action now.
+"""
+
+def generate_ai_decision(case_data):
+    """
+    Uses the Gemini LLM to make a standard decision for a low-risk case.
+    """
+    if not case_data:
+        return "Insufficient data to make a decision."
+
+    # Format the data for the prompt
+    formatted_data = (
+        f"Customer: {case_data['customer_name']} ({case_data['account_number']})\n"
+        f"Type: {case_data['customer_type']}, Due Amount: {case_data['due_amount']}\n"
+        f"Payment Record: {case_data['payment_record']}\n"
+        f"Agent's Notes: {case_data['agent_notes']}"
+    )
+
+    try:
+        full_prompt = AI_DECISION_PROMPT.format(case_data=formatted_data)
+        response = model.generate_content(full_prompt)
+        return response.text.strip()
+    except Exception as e:
+        print(f"LLM Decision Error: {e}")
+        return "Could not determine an AI decision."

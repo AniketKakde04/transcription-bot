@@ -17,13 +17,18 @@ def get_agent_and_customers(agent_number):
 
 # In db_utils.py
 
+# In db_utils.py
+
 def get_customer_history(account_number, agent_number):
     connection = sqlite3.connect('loan_recovery.db')
     connection.row_factory = sqlite3.Row
     cursor = connection.cursor()
     
+    # --- THIS IS THE CORRECTED QUERY ---
+    # It now includes c.customer_type in the SELECT statement
     cursor.execute('''
-        SELECT c.customer_name, c.account_number, c.due_amount, c.location, h.total_loan, h.emis_paid, h.last_payment_date, h.payment_record, h.agent_notes
+        SELECT c.customer_name, c.account_number, c.due_amount, c.location, c.customer_type, 
+               h.total_loan, h.emis_paid, h.last_payment_date, h.payment_record, h.agent_notes
         FROM customers c
         JOIN account_history h ON c.account_number = h.account_number
         WHERE c.account_number = ? AND c.assigned_agent_number = ?
@@ -31,8 +36,6 @@ def get_customer_history(account_number, agent_number):
     
     customer_details = cursor.fetchone()
     
-    # --- THIS IS THE KEY FIX ---
-    # Convert the sqlite3.Row object to a standard Python dictionary before returning
     if customer_details:
         customer_details = dict(customer_details)
 
@@ -168,3 +171,39 @@ def submit_supervisor_decision(comm_id, decision):
         return comm_details['agent_number'], comm_details['account_number']
     else:
         return None, None
+    
+# --- NEW: Function to get all details for the triage logic ---
+def get_triage_details(account_number):
+    """Fetches all customer and history details needed for the triage rules."""
+    connection = sqlite3.connect('loan_recovery.db')
+    connection.row_factory = sqlite3.Row
+    cursor = connection.cursor()
+    cursor.execute('''
+        SELECT c.customer_type, c.due_amount, h.payment_record
+        FROM customers c
+        JOIN account_history h ON c.account_number = h.account_number
+        WHERE c.account_number = ?
+    ''', (account_number,))
+    details = cursor.fetchone()
+    connection.close()
+    return details
+
+# --- NEW: Function to save the AI's decision ---
+def save_ai_decision(account_number, decision):
+    """Saves the AI's decision to the database and resolves the case."""
+    connection = sqlite3.connect('loan_recovery.db')
+    cursor = connection.cursor()
+    try:
+        cursor.execute('''
+            UPDATE account_history
+            SET ai_decision = ?, status = 'Resolved by AI'
+            WHERE account_number = ?
+        ''', (decision, account_number))
+        connection.commit()
+        success = True
+    except Exception as e:
+        print(f"Database Error saving AI decision: {e}")
+        success = False
+    finally:
+        connection.close()
+    return success

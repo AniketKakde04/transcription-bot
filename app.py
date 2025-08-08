@@ -4,6 +4,9 @@ from flask import Flask, request
 from dotenv import load_dotenv
 from twilio.twiml.messaging_response import MessagingResponse
 
+from db_utils import get_triage_details,save_ai_decision
+from llm_utils import generate_ai_decision
+
 # Import all of your utility functions
 from twilio_utils import download_audio_file, send_whatsapp_message
 from transcription_utils import transcribe_audio
@@ -59,51 +62,90 @@ def process_text_message(incoming_msg, from_number):
                 resp.message(f"Sorry, you don't have permission to view {acc_num_to_check}.")
         else:
             resp.message("Which account number would you like to see?")
-
+    
     elif intent == 'log_reason':
-        try:
-            notes = incoming_msg.split(':', 1)[1].strip()
-        except IndexError:
-            notes = ""
-        if account_number and notes:
-            success = log_agent_notes(account_number, from_number, notes)
-            if success:
-                resp.message(f"Successfully logged notes for {account_number}.")
+            try:
+                notes = incoming_msg.split(':', 1)[1].strip()
+            except IndexError:
+                notes = ""
+
+            if account_number and notes:
+                # First, log the agent's notes
+                log_agent_notes(account_number, from_number, notes)
+                
+                # --- NEW: Triage Logic ---
+                triage_details = get_triage_details(account_number)
+
+                # Rule 1: Mandatory Supervisor Escalation for VIP or Staff
+                if triage_details and triage_details['customer_type'] in ['VIP', 'Staff']:
+                    resp.message(f"Notes logged for {account_number}. This is a high-priority customer and will be escalated to your supervisor.")
+                    # (In a real app, you would also trigger the 'send_report' logic here)
+
+                # Rule 2: High-Value Account Escalation
+                elif triage_details and triage_details['due_amount'] > 15000:
+                    resp.message(f"Notes logged for {account_number}. Due to the high amount, this case will be escalated to your supervisor.")
+                    # (Trigger 'send_report' logic here as well)
+
+                # Rule 3: AI Decision-Making for Standard Cases
+                else:
+                    full_details = get_customer_history(account_number, from_number)
+                    ai_decision = generate_ai_decision(full_details)
+                    save_ai_decision(account_number, ai_decision)
+                    reply_msg = (
+                        f"Notes logged for {account_number}.\n\n"
+                        f"🤖 AI Recommendation: {ai_decision}"
+                    )
+                    resp.message(reply_msg)
             else:
-                resp.message(f"Sorry, you don't have permission to log notes for {account_number}.")
-        else:
-            resp.message("To log a reason, use the format: log for <account_number>: <reason>")
+                resp.message("To log a reason, please use the format: log for <account_number>: <reason>")
+
+    
 
     elif intent == 'get_priority_plan':
         all_data = get_all_data_for_agent(from_number)
         priority_plan = generate_priority_plan(all_data)
         resp.message(priority_plan)
         
+    # In app.py's process_text_message function
+
     elif intent == 'send_report':
-        last_account = user_context.get('last_account_viewed')
-        if last_account:
-            conn = sqlite3.connect('loan_recovery.db')
-            cursor = conn.cursor()
-            cursor.execute("SELECT supervisor_number FROM agents WHERE whatsapp_number = ?", (from_number,))
-            agent_info = cursor.fetchone()
-            conn.close()
+            # --- THIS IS THE KEY FIX ---
+            # The bot now checks for an account number in the current message first,
+            # and only falls back to its memory if one isn't provided.
+            account_to_report = account_number or user_context.get('last_account_viewed')
             
-            if agent_info and agent_info[0]:
-                supervisor_number = agent_info[0]
-                details = get_customer_history(last_account, from_number)
-                if details:
-                    summary = generate_summary_for_supervisor(details)
-                    success = create_communication_record(last_account, from_number, supervisor_number, summary)
-                    if success:
-                        resp.message(f"Your report for {last_account} has been sent to your supervisor for review.")
+            if account_to_report:
+                # First, get the agent's own details to find their supervisor
+                # This logic can be moved to db_utils.py for cleanliness in a future step
+                conn = sqlite3.connect('loan_recovery.db')
+                cursor = conn.cursor()
+                cursor.execute("SELECT supervisor_number FROM agents WHERE whatsapp_number = ?", (from_number,))
+                agent_info = cursor.fetchone()
+                conn.close()
+                
+                if agent_info and agent_info[0]:
+                    supervisor_number = agent_info[0]
+                    
+                    # Fetch the customer details to generate the summary
+                    details = get_customer_history(account_to_report, from_number)
+                    if details:
+                        summary = generate_summary_for_supervisor(details)
+                        
+                        # Save the report to the communications table
+                        success = create_communication_record(account_to_report, from_number, supervisor_number, summary)
+                        
+                        if success:
+                            resp.message(f"Your report for {account_to_report} has been sent to your supervisor for review.")
+                        else:
+                            resp.message("Sorry, there was an error sending your report. Please try again.")
                     else:
-                        resp.message("Sorry, there was an error sending your report.")
+                        resp.message(f"Could not find details for {account_to_report} to generate a report.")
                 else:
-                    resp.message(f"Could not find details for {last_account} to generate a report.")
+                    resp.message("Could not find a supervisor assigned to you in the system.")
             else:
-                resp.message("Could not find a supervisor assigned to you.")
-        else:
-            resp.message("Sorry, I'm not sure which account to send a report for. Please view an account's history first.")
+                resp.message("Sorry, I'm not sure which account you want to send a report for. Please specify an account number or view an account's history first.")
+
+# ... (rest of your app.py file)
 
     elif intent == 'get_pending_reports':
         reports = get_pending_reports_for_supervisor(from_number)
