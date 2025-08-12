@@ -63,42 +63,39 @@ def process_text_message(incoming_msg, from_number):
         else:
             resp.message("Which account number would you like to see?")
     
+    # In app.py's process_text_message function
+
+    # In app.py's process_text_message function
+
     elif intent == 'log_reason':
-            try:
-                notes = incoming_msg.split(':', 1)[1].strip()
-            except IndexError:
-                notes = ""
+            # This is the first step of the new, simpler flow
+        acc_num_to_log = account_number or user_context.get('last_account_viewed')
+        if acc_num_to_log:
+                # Remember that we are waiting for notes for this account
+            user_context['next_action'] = 'awaiting_notes'
+            user_context['action_account_number'] = acc_num_to_log
+            resp.message(f"Okay, I'm ready to log a reason for {acc_num_to_log}. What are the notes?")
+        else:
+            resp.message("Sorry, I'm not sure which account you want to log a reason for. Please specify an account number.")
 
-            if account_number and notes:
-                # First, log the agent's notes
-                log_agent_notes(account_number, from_number, notes)
+    elif intent == 'provide_notes':
+            # This is the second step, where the user provides the notes
+        if user_context.get('next_action') == 'awaiting_notes':
+            acc_num_for_notes = user_context.get('action_account_number')
+            notes = incoming_msg # The whole message is the note
                 
-                # --- NEW: Triage Logic ---
-                triage_details = get_triage_details(account_number)
-
-                # Rule 1: Mandatory Supervisor Escalation for VIP or Staff
-                if triage_details and triage_details['customer_type'] in ['VIP', 'Staff']:
-                    resp.message(f"Notes logged for {account_number}. This is a high-priority customer and will be escalated to your supervisor.")
-                    # (In a real app, you would also trigger the 'send_report' logic here)
-
-                # Rule 2: High-Value Account Escalation
-                elif triage_details and triage_details['due_amount'] > 15000:
-                    resp.message(f"Notes logged for {account_number}. Due to the high amount, this case will be escalated to your supervisor.")
-                    # (Trigger 'send_report' logic here as well)
-
-                # Rule 3: AI Decision-Making for Standard Cases
-                else:
-                    full_details = get_customer_history(account_number, from_number)
-                    ai_decision = generate_ai_decision(full_details)
-                    save_ai_decision(account_number, ai_decision)
-                    reply_msg = (
-                        f"Notes logged for {account_number}.\n\n"
-                        f"🤖 AI Recommendation: {ai_decision}"
-                    )
-                    resp.message(reply_msg)
+            success = log_agent_notes(acc_num_for_notes, from_number, notes)
+            if success:
+                resp.message(f"Got it. I've logged your notes for {acc_num_for_notes}.")
+                # Clear the next_action so the bot isn't stuck
+                user_context.pop('next_action', None)
+                user_context.pop('action_account_number', None)
             else:
-                resp.message("To log a reason, please use the format: log for <account_number>: <reason>")
+                resp.message(f"Sorry, you do not have permission to log notes for account {acc_num_for_notes}.")
+        else:
+            resp.message("Sorry, I wasn't expecting any notes. What would you like to do?")
 
+# ... (rest of your app.py file)
     
 
     elif intent == 'get_priority_plan':
@@ -211,8 +208,9 @@ def whatsapp_webhook():
     else:
         # --- This is a TEXT MESSAGE ---
         incoming_msg = request.form.get("Body", "").strip()
+        processed_text = detect_and_encrypt_sensitive(incoming_msg)
         # Process the typed text using our central function
-        return process_text_message(incoming_msg, from_number)
+        return process_text_message(processed_text, from_number)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
