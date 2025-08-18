@@ -56,21 +56,37 @@ def log_agent_notes(account_number, agent_number, notes):
         connection.close()
         return False
 
+# In db_utils.py
+
+# (get_agent_and_customers, get_customer_history, and log_agent_notes remain the same)
+# ...
+
 def get_all_data_for_agent(agent_number):
+    """
+    Fetches all the feature data for every customer assigned to a specific agent,
+    ready for the predictive model.
+    """
     connection = sqlite3.connect('loan_recovery.db')
     connection.row_factory = sqlite3.Row
     cursor = connection.cursor()
 
+    # --- UPDATED QUERY to fetch all features from the customer_profile table ---
     cursor.execute('''
-        SELECT c.customer_name, c.due_amount, c.account_number, h.payment_record
+        SELECT 
+            c.customer_name, c.account_number,
+            p.Age, p.Income, p.LoanAmount, p.CreditScore, p.MonthsEmployed, 
+            p.NumCreditLines, p.InterestRate, p.LoanTerm, p.DTIRatio, p.Education,
+            p.EmploymentType, p.MaritalStatus, p.HasMortgage, p.HasDependents, 
+            p.LoanPurpose, p.HasCoSigner
         FROM customers c
-        JOIN account_history h ON c.account_number = h.account_number
+        JOIN customer_profile p ON c.account_number = p.account_number
         WHERE c.assigned_agent_number = ?
     ''', (agent_number,))
     
-    all_customer_data = cursor.fetchall()
+    all_data = cursor.fetchall()
     connection.close()
-    return all_customer_data
+    
+    return [dict(row) for row in all_data]
 
 def get_full_case_details(account_number, supervisor_number):
     connection = sqlite3.connect('loan_recovery.db')
@@ -207,3 +223,33 @@ def save_ai_decision(account_number, decision):
     finally:
         connection.close()
     return success
+
+# In db_utils.py
+
+
+
+def get_data_for_prediction(account_number):
+    """
+    Fetches all the feature data for a single customer, ready for the predictive model.
+    """
+    connection = sqlite3.connect('loan_recovery.db')
+    connection.row_factory = sqlite3.Row
+    cursor = connection.cursor()
+
+    # --- UPDATED QUERY to fetch the correct columns from the new profile table ---
+    cursor.execute('''
+        SELECT 
+            p.Age, p.Income, p.LoanAmount, p.CreditScore, p.MonthsEmployed, 
+            p.NumCreditLines, p.InterestRate, p.LoanTerm, p.DTIRatio, p.Education,
+            p.EmploymentType, p.MaritalStatus, p.HasMortgage, p.HasDependents, 
+            p.LoanPurpose, p.HasCoSigner
+        FROM customer_profile p
+        WHERE p.account_number = ?
+    ''', (account_number,))
+    
+    data = cursor.fetchone()
+    connection.close()
+    
+    if data:
+        return dict(data)
+    return None

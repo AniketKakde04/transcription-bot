@@ -3,12 +3,14 @@ import sqlite3
 from flask import Flask, request
 from dotenv import load_dotenv
 from twilio.twiml.messaging_response import MessagingResponse
-
+from db_utils import get_data_for_prediction
+from prediction_utils import make_prediction
 from db_utils import get_triage_details,save_ai_decision
 from llm_utils import generate_ai_decision
 
 # Import all of your utility functions
 from twilio_utils import download_audio_file, send_whatsapp_message
+from prediction_utils import make_prediction, generate_model_based_plan
 from transcription_utils import transcribe_audio
 from sensitive_utils.detector import detect_and_encrypt_sensitive
 from db_utils import get_agent_and_customers, get_customer_history, log_agent_notes, get_all_data_for_agent, create_communication_record, get_pending_reports_for_supervisor, submit_supervisor_decision
@@ -68,15 +70,29 @@ def process_text_message(incoming_msg, from_number):
     # In app.py's process_text_message function
 
     elif intent == 'log_reason':
-            # This is the first step of the new, simpler flow
-        acc_num_to_log = account_number or user_context.get('last_account_viewed')
-        if acc_num_to_log:
-                # Remember that we are waiting for notes for this account
-            user_context['next_action'] = 'awaiting_notes'
-            user_context['action_account_number'] = acc_num_to_log
-            resp.message(f"Okay, I'm ready to log a reason for {acc_num_to_log}. What are the notes?")
-        else:
-            resp.message("Sorry, I'm not sure which account you want to log a reason for. Please specify an account number.")
+            try:
+                notes = incoming_msg.split(':', 1)[1].strip()
+            except IndexError:
+                notes = ""
+
+            if account_number and notes:
+                # First, log the agent's notes
+                success = log_agent_notes(account_number, from_number, notes)
+                
+                if success:
+                    # After logging, get the data and make a prediction
+                    prediction_data = get_data_for_prediction(account_number)
+                    prediction_result = make_prediction(prediction_data)
+
+                    reply_msg = (
+                        f"Successfully logged notes for {account_number}.\n\n"
+                        f"🤖 **Automated Analysis:**\n{prediction_result}"
+                    )
+                    resp.message(reply_msg)
+                else:
+                    resp.message(f"Sorry, you do not have permission to log notes for account {account_number}.")
+            else:
+                resp.message("To log a reason, please use the format: log for <account_number>: <reason>")
 
     elif intent == 'provide_notes':
             # This is the second step, where the user provides the notes
@@ -99,9 +115,14 @@ def process_text_message(incoming_msg, from_number):
     
 
     elif intent == 'get_priority_plan':
-        all_data = get_all_data_for_agent(from_number)
-        priority_plan = generate_priority_plan(all_data)
-        resp.message(priority_plan)
+            # 1. Get all the necessary feature data for the agent's customers
+            all_data = get_all_data_for_agent(from_number)
+            
+            # 2. Generate the priority plan using the custom-trained model
+            priority_plan = generate_model_based_plan(all_data)
+            
+            # 3. Send the plan to the agent
+            resp.message(priority_plan)
         
     # In app.py's process_text_message function
 

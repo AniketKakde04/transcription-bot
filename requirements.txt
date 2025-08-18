@@ -2,6 +2,7 @@ flask
 python-dotenv
 torch
 transformers
+bcrypt
 twilio
 requests
 nltk 
@@ -12,3 +13,9 @@ deep-translator
 google-generativeai
 Flask-WTF
 email-validator
+pandas
+scikit-learn
+matplotlib
+seaborn
+xgboost
+joblib
