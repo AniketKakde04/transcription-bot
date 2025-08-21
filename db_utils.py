@@ -189,20 +189,40 @@ def submit_supervisor_decision(comm_id, decision):
         return None, None
     
 # --- NEW: Function to get all details for the triage logic ---
+# In db_utils.py
+
+# In db_utils.py
+
+def get_supervisor_for_agent(agent_number):
+    """Fetches the supervisor's number for a given agent."""
+    connection = sqlite3.connect('loan_recovery.db')
+    cursor = connection.cursor()
+    cursor.execute("SELECT supervisor_number FROM agents WHERE whatsapp_number = ?", (agent_number,))
+    supervisor_info = cursor.fetchone()
+    connection.close()
+    if supervisor_info:
+        return supervisor_info[0]
+    return None
+
 def get_triage_details(account_number):
-    """Fetches all customer and history details needed for the triage rules."""
+    """Fetches the necessary details for the triage logic, including the credit score."""
     connection = sqlite3.connect('loan_recovery.db')
     connection.row_factory = sqlite3.Row
     cursor = connection.cursor()
+
     cursor.execute('''
-        SELECT c.customer_type, c.due_amount, h.payment_record
+        SELECT c.customer_type, p.CreditScore
         FROM customers c
-        JOIN account_history h ON c.account_number = h.account_number
+        JOIN customer_profile p ON c.account_number = p.account_number
         WHERE c.account_number = ?
     ''', (account_number,))
+    
     details = cursor.fetchone()
     connection.close()
-    return details
+    
+    if details:
+        return dict(details)
+    return None
 
 # --- NEW: Function to save the AI's decision ---
 def save_ai_decision(account_number, decision):

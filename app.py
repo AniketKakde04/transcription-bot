@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from twilio.twiml.messaging_response import MessagingResponse
 from db_utils import get_data_for_prediction
 from prediction_utils import make_prediction
-from db_utils import get_triage_details,save_ai_decision
+from db_utils import get_triage_details,save_ai_decision,get_supervisor_for_agent
 from llm_utils import generate_ai_decision
 
 # Import all of your utility functions
@@ -80,15 +80,35 @@ def process_text_message(incoming_msg, from_number):
                 success = log_agent_notes(account_number, from_number, notes)
                 
                 if success:
-                    # After logging, get the data and make a prediction
-                    prediction_data = get_data_for_prediction(account_number)
-                    prediction_result = make_prediction(prediction_data)
 
-                    reply_msg = (
-                        f"Successfully logged notes for {account_number}.\n\n"
-                        f"🤖 **Automated Analysis:**\n{prediction_result}"
-                    )
-                    resp.message(reply_msg)
+                    triage_details = get_triage_details(account_number)
+
+                    CREDIT_SCORE_THRESHOLD = 700
+
+                    if triage_details and triage_details['CreditScore'] < CREDIT_SCORE_THRESHOLD:
+
+                        
+                        supervisor_number = get_supervisor_for_agent(from_number)
+                        if supervisor_number:
+                            details = get_customer_history(account_number, from_number)
+                            summary = generate_summary_for_supervisor(details)
+                            create_communication_record(account_number, from_number, supervisor_number, summary)
+                            
+                            resp.message(f"Notes logged for {account_number}. Due to a low credit score, a report has been automatically sent to your supervisor.")
+                        else:
+                            resp.message(f"Notes logged for {account_number}.Due to a low credit score, this case has been escalated to your supervisor.")
+                        # If the credit score is below the threshold, generate an AI decision
+                       
+                    # After logging, get the data and make a prediction
+                    else:
+                        prediction_data = get_data_for_prediction(account_number)
+                        prediction_result = make_prediction(prediction_data)
+                        reply_msg = (
+                            f"Successfully logged notes for {account_number}.\n\n"
+                            f"🤖 **Automated Analysis:**\n{prediction_result}"
+                        )
+                        resp.message(reply_msg)
+
                 else:
                     resp.message(f"Sorry, you do not have permission to log notes for account {account_number}.")
             else:
